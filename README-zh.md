@@ -27,7 +27,9 @@
 ### Windows
 
  1.    修改本机DNS为127.0.0.1
- 
+
+ 2.    运行toexe.bat，生成tcpdns.exe
+
  2.    运行tcpdns.exe
 
 
