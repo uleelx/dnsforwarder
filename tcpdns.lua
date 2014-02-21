@@ -45,19 +45,15 @@ end
 
 local function dispatch()
   local i = 1
-  local timeout = {}
   while threads[i] do
     local sock = threads[i]()
     if not sock then
       table.remove(threads, i)
     else
       i = i + 1
-      timeout[#timeout + 1] = sock
     end
   end
-  if #timeout > 3 and #timeout == #threads then
-    socket.select(timeout, nil, 0.1)
-  end
+  if i > 1 then socket.sleep(0.03) end
 end
 
 local function mainLoop()
