@@ -7,6 +7,7 @@ local resume, yield = coroutine.resume, coroutine.yield
 
 local udp = socket.udp()
 local threads = {}
+local lock = {}
 
 local hosts = {
   "8.8.8.8", "8.8.4.4",
@@ -17,13 +18,11 @@ local function LRU(size)
   local keys, dic, lru = {}, {}, {}
 
   function lru.add(key, value)
-    if not lru.get(key) then
-      if #keys == size then
-        dic[keys[size]] = nil
-        remove(keys)
-      end
-      insert(keys, 1, key)
+    if #keys == size then
+      dic[keys[size]] = nil
+      remove(keys)
     end
+    insert(keys, 1, key)
     dic[key] = value
   end
 
@@ -71,6 +70,7 @@ local function transfer(domain, data, ip, port)
     cache.add(domain, data:sub(3))
     udp:sendto(data, ip, port)
   end
+  lock[domain] = nil
 end
 
 local function solve(data, ip, port)
@@ -79,7 +79,9 @@ local function solve(data, ip, port)
   if packet then
     udp:sendto(data:sub(1, 2)..packet, ip, port)
   else
+    if lock[domain] then return end
     local new_thread = create(transfer)
+    lock[domain] = true
     resume(new_thread, domain, data, ip, port)
     if status(new_thread) ~= "dead" then
       insert(threads, new_thread)
