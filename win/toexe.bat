@@ -9,5 +9,6 @@ echo start to create tcpdns.exe
 echo;
 bl.exe pegar.lua read:bl.exe lua:../tcpdns.lua write:tcpdns.exe
 echo;
+echo please wait...
 echo finished!
 pause
