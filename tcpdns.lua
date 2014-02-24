@@ -1,5 +1,5 @@
-local socket = socket or require("socket")
-local struct = struct or require("struct")
+local socket = require("socket")
+local struct = require("struct")
 local insert, remove = table.insert, table.remove
 local create, status = coroutine.create, coroutine.status
 local resume, yield = coroutine.resume, coroutine.yield
