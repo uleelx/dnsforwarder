@@ -1,18 +1,37 @@
 local socket = require("socket")
 local struct = require("struct")
+
 local insert, remove = table.insert, table.remove
 local create, status = coroutine.create, coroutine.status
 local resume, yield = coroutine.resume, coroutine.yield
 
 
-local udp = socket.udp()
 local threads = {}
-local lock = {}
 
-local hosts = {
-  "8.8.8.8", "8.8.4.4",
-  "208.67.222.222", "208.67.220.220"
-}
+local function addthread(f, ...)
+  local new_thread = create(f)
+  resume(new_thread, ...)
+  if status(new_thread) ~= "dead" then
+    insert(threads, new_thread)
+  end
+end
+
+local function step()
+  if #threads == 0 then
+    socket.sleep(0.01)
+  else
+    local i = 1
+    while threads[i] do
+      resume(threads[i])
+      if status(threads[i]) == "dead" then
+        remove(threads, i)
+      else
+        i = i + 1
+      end
+    end
+    if i > 1 then socket.sleep(0.03) end
+  end
+end
 
 local function LRU(size)
   local keys, dic, lru = {}, {}, {}
@@ -44,6 +63,11 @@ end
 
 local cache = LRU(20)
 
+local hosts = {
+  "8.8.8.8", "8.8.4.4",
+  "208.67.222.222", "208.67.220.220"
+}
+
 local function queryDNS(host, data)
   local sock = socket.tcp()
   sock:settimeout(2)
@@ -60,7 +84,9 @@ local function queryDNS(host, data)
   return recv
 end
 
-local function transfer(domain, data, ip, port)
+local lock = {}
+
+local function transfer(skt, domain, data, ip, port)
   for _, host in ipairs(hosts) do
     data = queryDNS(host, data)
     if #data > 0 then break end
@@ -68,54 +94,35 @@ local function transfer(domain, data, ip, port)
   if #data > 0 then
     data = data:sub(3)
     cache.add(domain, data:sub(3))
-    udp:sendto(data, ip, port)
+    skt:sendto(data, ip, port)
   end
   lock[domain] = nil
 end
 
-local function solve(data, ip, port)
-  local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  local packet = cache.get(domain)
-  if packet then
-    udp:sendto(data:sub(1, 2)..packet, ip, port)
-  else
-    if lock[domain] then return end
-    local new_thread = create(transfer)
-    lock[domain] = true
-    resume(new_thread, domain, data, ip, port)
-    if status(new_thread) ~= "dead" then
-      insert(threads, new_thread)
+local function handler(skt)
+  local data, ip, port = skt:receivefrom()
+  if data then
+    local domain = (data:sub(14, -6):gsub("[^%w]", "."))
+    local packet = cache.get(domain)
+    if packet then
+      skt:sendto(data:sub(1, 2)..packet, ip, port)
+    elseif not lock[domain] then
+      lock[domain] = true
+      addthread(transfer, skt, domain, data, ip, port)
     end
+    print("domain: "..domain, "thread: "..#threads)
   end
-  print("domain: "..domain, "thread: "..#threads)
 end
 
-local function dispatch()
-  local i = 1
-  while threads[i] do
-    resume(threads[i])
-    if status(threads[i]) == "dead" then
-      remove(threads, i)
-    else
-      i = i + 1
-    end
-  end
-  if i > 1 then socket.sleep(0.03) end
-end
+local udp = socket.udp()
+udp:settimeout(0)
+udp:setsockname('*', 53)
 
-local function mainLoop()
-  udp:settimeout(0)
-  udp:setsockname('*', 53)
-  local data, ip, port
+local function loop()
   while true do
-    data, ip, port = udp:receivefrom()
-    if data then solve(data, ip, port) end
-    if #threads > 0 then
-      dispatch()
-    else
-      socket.sleep(0.01)
-    end
+    handler(udp)
+    step()
   end
 end
 
-mainLoop()
+loop()
