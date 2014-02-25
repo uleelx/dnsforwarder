@@ -20,7 +20,7 @@ local function queryDNS(host, data)
     repeat
       local s, status, partial = sock:receive(1024)
       recv = recv..(s or partial)
-      if status == "timeout" then coroutine.yield() end
+      if status == "timeout" then task.wait(0.03) end
     until status == "closed"
     sock:close()
   end
@@ -56,20 +56,10 @@ local function udpserver()
     if data then
       task.go(transfer, udp, data, ip, port)
     end
-    coroutine.yield()
+    task.wait()
   end
 end
 
 task.go(udpserver)
 
-local function loop()
-  while true do
-    if task.step() == 1 then
-      socket.sleep(0.01)
-    else
-      socket.sleep(0.03)
-    end
-  end
-end
-
-loop()
+task.loop()
