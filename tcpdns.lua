@@ -1,18 +1,13 @@
 local socket = require("socket")
 local struct = require("struct")
 
-local insert, remove = table.insert, table.remove
-local create, status = coroutine.create, coroutine.status
-local resume, yield = coroutine.resume, coroutine.yield
-
-
 local threads = {}
 
 local function addthread(f, ...)
-  local new_thread = create(f)
-  resume(new_thread, ...)
-  if status(new_thread) ~= "dead" then
-    insert(threads, new_thread)
+  local new_thread = coroutine.create(f)
+  coroutine.resume(new_thread, ...)
+  if coroutine.status(new_thread) ~= "dead" then
+    table.insert(threads, new_thread)
   end
 end
 
@@ -22,9 +17,9 @@ local function step()
   else
     local i = 1
     while threads[i] do
-      resume(threads[i])
-      if status(threads[i]) == "dead" then
-        remove(threads, i)
+      coroutine.resume(threads[i])
+      if coroutine.status(threads[i]) == "dead" then
+        table.remove(threads, i)
       else
         i = i + 1
       end
@@ -39,9 +34,9 @@ local function LRU(size)
   function lru.add(key, value)
     if #keys == size then
       dic[keys[size]] = nil
-      remove(keys)
+      table.remove(keys)
     end
-    insert(keys, 1, key)
+    table.insert(keys, 1, key)
     dic[key] = value
   end
 
@@ -50,7 +45,7 @@ local function LRU(size)
     if value and keys[1] ~= key then
       for i, k in ipairs(keys) do
         if k == key then
-          insert(keys, 1, remove(keys, i))
+          table.insert(keys, 1, table.remove(keys, i))
           break
         end
       end
@@ -78,7 +73,7 @@ local function queryDNS(host, data)
     repeat
       local s, status, partial = sock:receive(1024)
       recv = recv ..(s or partial)
-      if status == "timeout" then yield() end
+      if status == "timeout" then coroutine.yield() end
     until status == "closed"
   end
   return recv
