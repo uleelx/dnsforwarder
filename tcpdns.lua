@@ -39,7 +39,7 @@ end
 -----------------------------------------
 do
 
-  local os, table, coroutine = os, table, coroutine
+  local os, coroutine = os, coroutine
   local pool = {}
   local clk = setmetatable({}, {__mode = "k"})
 
@@ -47,19 +47,21 @@ do
     local co = coroutine.create(f)
     coroutine.resume(co, ...)
     if coroutine.status(co) ~= "dead" then
-      table.insert(pool, co)
+      local i = 0
+      repeat
+        i = i + 1
+      until not pool[i]
+      pool[i] = co
       clk[co] = clk[co] or os.clock()
     end
   end
 
   local function step()
     local i = 1
-    while pool[i] and os.clock() >= clk[pool[i]] do
-      coroutine.resume(pool[i])
-      if coroutine.status(pool[i]) == "dead" then
-        table.remove(pool, i)
-      else
-        i = i + 1
+    for i, co in ipairs(pool) do
+      coroutine.resume(co)
+      if coroutine.status(co) == "dead" then
+        pool[i] = nil
       end
     end
     return #pool
@@ -74,9 +76,9 @@ do
   local function loop(n)
     n = n or 0.001
     local sleep = ps.sleep or socket.sleep
-    repeat
+    while step() ~= 0 do
       sleep(n)
-    until step() == 0
+    end
   end
 
   local mutex = {}
