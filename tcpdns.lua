@@ -91,10 +91,15 @@ do
     mutex[o] = nil
   end
 
+  local function count()
+    return #pool
+  end
+
   task = {
     go = go, wait = wait,
     step = step, loop = loop,
-    lock = lock, unlock = unlock
+    lock = lock, unlock = unlock,
+    count = count
   }
 
 end
@@ -103,6 +108,7 @@ end
 -- TCP DNS proxy
 -----------------------------------------
 local cache = LRU(20)
+local task = task
 
 local hosts = {
   "8.8.8.8", "8.8.4.4",
@@ -128,7 +134,7 @@ end
 
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain)
+  print("domain: "..domain, "thread: "..task.count())
   task.lock(domain, 0.01)
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
