@@ -47,9 +47,7 @@ do
     local co = coroutine.create(f)
     coroutine.resume(co, ...)
     if coroutine.status(co) ~= "dead" then
-      local i = 0
-      repeat i = i + 1 until not pool[i]
-      pool[i] = co
+      table.insert(pool, co)
       clk[co] = clk[co] or os.clock()
     end
   end
@@ -58,9 +56,14 @@ do
     for i, co in ipairs(pool) do
       if os.clock() >= clk[co] then
         coroutine.resume(co)
-        if coroutine.status(co) == "dead" then
-          pool[i] = nil
-        end
+      end
+    end
+    local i = 1
+    while pool[i] do
+      if coroutine.status(pool[i]) == "dead" then
+        table.remove(pool, i)
+      else
+        i = i + 1
       end
     end
     return #pool
