@@ -39,8 +39,8 @@ end
 -----------------------------------------
 do
 
-  local clock, ipairs, coroutine = os.clock, ipairs, coroutine
   local pool = {}
+  local mutex = {}
   local clk = setmetatable({}, {__mode = "k"})
 
   local function go(f, ...)
@@ -48,19 +48,19 @@ do
     coroutine.resume(co, ...)
     if coroutine.status(co) ~= "dead" then
       local i = 0
-      repeat
-        i = i + 1
-      until not pool[i]
+      repeat i = i + 1 until not pool[i]
       pool[i] = co
-      clk[co] = clk[co] or clock()
+      clk[co] = clk[co] or os.clock()
     end
   end
 
   local function step()
     for i, co in ipairs(pool) do
-      coroutine.resume(co)
-      if coroutine.status(co) == "dead" then
-        pool[i] = nil
+      if os.clock() >= clk[co] then
+        coroutine.resume(co)
+        if coroutine.status(co) == "dead" then
+          pool[i] = nil
+        end
       end
     end
     return #pool
@@ -68,24 +68,18 @@ do
 
   local function sleep(n)
     n = n or 0
-    clk[coroutine.running()] = clock() + n
+    clk[coroutine.running()] = os.clock() + n
     coroutine.yield()
   end
 
   local function loop(n)
     n = n or 0.001
     local sleep = ps.sleep or socket.sleep
-    while step() ~= 0 do
-      sleep(n)
-    end
+    while step() ~= 0 do sleep(n) end
   end
 
-  local mutex = {}
-
   local function lock(o, n)
-    while mutex[o] do
-      sleep(n)
-    end
+    while mutex[o] do sleep(n) end
     mutex[o] = true
   end
 
