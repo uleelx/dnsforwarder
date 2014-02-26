@@ -7,7 +7,7 @@
 :: -------------------------
 echo start to create tcpdns.exe, it may take a second time...
 echo;
-bl.exe pegar.lua read:bl.exe lua:LRU.lua lua:task.lua lua:../tcpdns.lua write:tcpdns.exe
+bl.exe pegar.lua read:bl.exe lua:../tcpdns.lua write:tcpdns.exe
 echo;
 echo finished!
 pause
