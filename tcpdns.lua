@@ -18,10 +18,10 @@ local function queryDNS(host, data)
     sock:send(struct.pack(">h", #data)..data)
     sock:settimeout(0)
     repeat
+      task.wait(0.01)
       local s, status, partial = sock:receive(1024)
       recv = recv..(s or partial)
-      if status == "timeout" then task.wait(0.03) end
-    until status == "closed"
+    until #recv > 0 or status == "closed"
     sock:close()
   end
   return recv
@@ -30,7 +30,7 @@ end
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
   print("domain: "..domain)
-  task.mutex(domain)
+  task.lock(domain)
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
   else
@@ -44,7 +44,7 @@ local function transfer(skt, data, ip, port)
       skt:sendto(data, ip, port)
     end
   end
-  task.mutex(domain, false)
+  task.unlock(domain)
 end
 
 local function udpserver()

@@ -1,6 +1,6 @@
 local pool = {}
 local clk = setmetatable({}, {__mode = "k"})
-local lock = {}
+local mutex = {}
 
 local function go(f, ...)
   local co = coroutine.create(f)
@@ -31,28 +31,28 @@ local function wait(n)
 end
 
 local function loop(n)
-  n = n or 0.01
+  n = n or 0.001
   local sleep = ps.sleep or socket.sleep
   repeat
     sleep(n)
   until step() == 0
 end
 
-local function mutex(o, flag)
-  if flag == nil then
-    while lock[o] do
-      coroutine.yield()
-    end
-    lock[o] = true
-  elseif flag == false then
-    lock[o] = nil
+local function lock(o)
+  while mutex[o] do
+    coroutine.yield()
   end
+  mutex[o] = true
+end
+
+local function unlock(o)
+  mutex[o] = nil
 end
 
 task = {
   go = go, wait = wait,
   step = step, loop = loop,
-  mutex = mutex
+  lock = lock, unlock = unlock
 }
 
 package.loaded["task"] = task
