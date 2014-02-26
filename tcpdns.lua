@@ -5,21 +5,10 @@ local struct = require("struct")
 -- LRU cache function
 -----------------------------------------
 local function LRU(size)
-  local keys, dic, lru = {}, {}, {}
+  local keys, dict = {}, {}
 
-  function lru.add(key, value)
-    if not lru.get(key) then
-      if #keys == size then
-        dic[keys[size]] = nil
-        table.remove(keys)
-      end
-      table.insert(keys, 1, key)
-    end
-    dic[key] = value
-  end
-
-  function lru.get(key)
-    local value = dic[key]
+  local function get(key)
+    local value = dict[key]
     if value and keys[1] ~= key then
       for i, k in ipairs(keys) do
         if k == key then
@@ -31,7 +20,18 @@ local function LRU(size)
     return value
   end
 
-  return lru
+  local function add(key, value)
+    if not get(key) then
+      if #keys == size then
+        dict[keys[size]] = nil
+        table.remove(keys)
+      end
+      table.insert(keys, 1, key)
+    end
+    dict[key] = value
+  end
+
+  return {add = add, get = get}
 end
 
 -----------------------------------------
@@ -39,7 +39,7 @@ end
 -----------------------------------------
 do
 
-  local os, coroutine = os, coroutine
+  local clock, ipairs, coroutine = os.clock, ipairs, coroutine
   local pool = {}
   local clk = setmetatable({}, {__mode = "k"})
 
@@ -52,12 +52,11 @@ do
         i = i + 1
       until not pool[i]
       pool[i] = co
-      clk[co] = clk[co] or os.clock()
+      clk[co] = clk[co] or clock()
     end
   end
 
   local function step()
-    local i = 1
     for i, co in ipairs(pool) do
       coroutine.resume(co)
       if coroutine.status(co) == "dead" then
@@ -69,7 +68,7 @@ do
 
   local function sleep(n)
     n = n or 0
-    clk[coroutine.running()] = os.clock() + n
+    clk[coroutine.running()] = clock() + n
     coroutine.yield()
   end
 
@@ -162,7 +161,7 @@ local function udpserver()
     if data then
       task.go(transfer, udp, data, ip, port)
     end
-    task.sleep()
+    task.sleep(0)
   end
 end
 
