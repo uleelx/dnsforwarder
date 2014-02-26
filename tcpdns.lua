@@ -39,6 +39,7 @@ end
 -----------------------------------------
 do
 
+  local os, table, coroutine = os, table, coroutine
   local pool = {}
   local clk = setmetatable({}, {__mode = "k"})
 
@@ -64,7 +65,7 @@ do
     return #pool
   end
 
-  local function wait(n)
+  local function sleep(n)
     n = n or 0
     clk[coroutine.running()] = os.clock() + n
     coroutine.yield()
@@ -82,7 +83,7 @@ do
 
   local function lock(o, n)
     while mutex[o] do
-      wait(n)
+      sleep(n)
     end
     mutex[o] = true
   end
@@ -91,16 +92,14 @@ do
     mutex[o] = nil
   end
 
-  local function count()
-    return #pool
-  end
-
-  task = {
-    go = go, wait = wait,
-    step = step, loop = loop,
-    lock = lock, unlock = unlock,
-    count = count
-  }
+  task = setmetatable(
+    {
+      go = go, sleep = sleep,
+      step = step, loop = loop,
+      lock = lock, unlock = unlock
+    },
+    {__len = function() return #pool end}
+  )
 
 end
 
@@ -123,7 +122,7 @@ local function queryDNS(host, data)
     sock:send(struct.pack(">h", #data)..data)
     sock:settimeout(0)
     repeat
-      task.wait(0.01)
+      task.sleep(0.01)
       local s, status, partial = sock:receive(1024)
       recv = recv..(s or partial)
     until #recv > 0 or status == "closed"
@@ -134,7 +133,7 @@ end
 
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain, "thread: "..task.count())
+  print("domain: "..domain, "thread: "..#task)
   task.lock(domain, 0.01)
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
@@ -161,7 +160,7 @@ local function udpserver()
     if data then
       task.go(transfer, udp, data, ip, port)
     end
-    task.wait()
+    task.sleep()
   end
 end
 
