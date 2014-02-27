@@ -41,19 +41,15 @@ do
 
   local pool = {}
   local mutex = {}
+  local num = 0
 
   local function go(f, ...)
     local co = coroutine.create(f)
     assert(coroutine.resume(co, ...))
     if coroutine.status(co) ~= "dead" then
       pool[co] = pool[co] or os.clock()
+      num = num + 1
     end
-  end
-
-  local function count()
-    local c = 0
-    for _ in pairs(pool) do c = c + 1 end
-    return c
   end
 
   local function step()
@@ -62,10 +58,11 @@ do
         assert(coroutine.resume(co))
         if coroutine.status(co) == "dead" then
           pool[co] = nil
+          num = num - 1
         end
       end
     end
-    return count()
+    return num
   end
 
   local function sleep(n)
@@ -87,6 +84,10 @@ do
 
   local function unlock(o)
     mutex[o] = nil
+  end
+
+  local function count()
+    return num
   end
 
   task = {
