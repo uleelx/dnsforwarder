@@ -20,7 +20,7 @@ local function LRU(size)
     return value
   end
 
-  local function add(key, value)
+  local function set(key, value)
     if not get(key) then
       if #keys == size then
         dict[keys[size]] = nil
@@ -31,7 +31,7 @@ local function LRU(size)
     dict[key] = value
   end
 
-  return {add = add, get = get}
+  return {set = set, get = get}
 end
 
 -----------------------------------------
@@ -144,7 +144,7 @@ local function transfer(skt, data, ip, port)
     end
     if #data > 0 then
       data = data:sub(3)
-      cache.add(domain, data:sub(3))
+      cache.set(domain, data:sub(3))
       skt:sendto(data, ip, port)
     end
   end
