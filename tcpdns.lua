@@ -90,14 +90,16 @@ do
     mutex[o] = nil
   end
 
-  task = setmetatable(
-    {
-      go = go, sleep = sleep,
-      step = step, loop = loop,
-      lock = lock, unlock = unlock
-    },
-    {__len = function() return #pool end}
-  )
+  local function count(o)
+    return #pool
+  end
+
+  task = {
+    go = go, sleep = sleep,
+    step = step, loop = loop,
+    lock = lock, unlock = unlock,
+    count = count
+  }
 
 end
 
@@ -131,7 +133,7 @@ end
 
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain, "thread: "..#task)
+  print("domain: "..domain, "thread: "..task.count())
   task.lock(domain, 0.01)
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
