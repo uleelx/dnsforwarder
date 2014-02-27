@@ -45,7 +45,7 @@ do
 
   local function go(f, ...)
     local co = coroutine.create(f)
-    coroutine.resume(co, ...)
+    assert(coroutine.resume(co, ...))
     if coroutine.status(co) ~= "dead" then
       table.insert(pool, co)
       clk[co] = clk[co] or os.clock()
@@ -55,7 +55,7 @@ do
   local function step()
     for i, co in ipairs(pool) do
       if os.clock() >= clk[co] then
-        coroutine.resume(co)
+        assert(coroutine.resume(co))
       end
     end
     local i = 1
