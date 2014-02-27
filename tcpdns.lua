@@ -41,37 +41,36 @@ do
 
   local pool = {}
   local mutex = {}
-  local clk = setmetatable({}, {__mode = "k"})
 
   local function go(f, ...)
     local co = coroutine.create(f)
     assert(coroutine.resume(co, ...))
     if coroutine.status(co) ~= "dead" then
-      table.insert(pool, co)
-      clk[co] = clk[co] or os.clock()
+      pool[co] = pool[co] or os.clock()
     end
   end
 
+  local function count()
+    local c = 0
+    for _ in pairs(pool) do c = c + 1 end
+    return c
+  end
+
   local function step()
-    for i, co in ipairs(pool) do
-      if os.clock() >= clk[co] then
+    for co, wt in pairs(pool) do
+      if os.clock() >= wt then
         assert(coroutine.resume(co))
+        if coroutine.status(co) == "dead" then
+          pool[co] = nil
+        end
       end
     end
-    local i = 1
-    while pool[i] do
-      if coroutine.status(pool[i]) == "dead" then
-        table.remove(pool, i)
-      else
-        i = i + 1
-      end
-    end
-    return #pool
+    return count()
   end
 
   local function sleep(n)
     n = n or 0
-    clk[coroutine.running()] = os.clock() + n
+    pool[coroutine.running()] = os.clock() + n
     coroutine.yield()
   end
 
@@ -88,10 +87,6 @@ do
 
   local function unlock(o)
     mutex[o] = nil
-  end
-
-  local function count(o)
-    return #pool
   end
 
   task = {
