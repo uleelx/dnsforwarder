@@ -101,7 +101,7 @@ end
 -----------------------------------------
 -- TCP DNS proxy
 -----------------------------------------
-local cache = LRU(20)
+local cache = LRU(45)
 local task = task
 
 local hosts = {
@@ -126,16 +126,20 @@ local function queryDNS(host, data)
   return recv
 end
 
+local lock = {}
+
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
   print("domain: "..domain, "thread: "..task.count())
-  task.lock(domain, 0.01)
+  if lock[domain] then return end
+  lock[domain] = true
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
   else
     for _, host in ipairs(hosts) do
       data = queryDNS(host, data)
       if #data > 0 then break end
+      task.sleep(0)
     end
     if #data > 0 then
       data = data:sub(3)
@@ -143,7 +147,7 @@ local function transfer(skt, data, ip, port)
       skt:sendto(data, ip, port)
     end
   end
-  task.unlock(domain)
+  lock[domain] = nil
 end
 
 local function udpserver()
