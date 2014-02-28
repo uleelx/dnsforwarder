@@ -122,6 +122,7 @@ local function queryDNS(host, data)
   if not ret then task.sleep(1) end
   ret = ""
   if sock:send(struct.pack(">h", #data)..data) then
+    sock:settimeout(0)
     repeat
       task.sleep(0.02)
       local s, status, partial = sock:receive(1024)
@@ -135,21 +136,21 @@ end
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
   print("domain: "..domain, "thread: "..task.count())
-  task.lock(domain)
-  if cache.get(domain) then
-    skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
+  local ID, key = data:sub(1, 2), data:sub(3)
+  task.lock(key)
+  if cache.get(key) then
+    skt:sendto(ID..cache.get(key):sub(5), ip, port)
   else
     for _, host in ipairs(hosts) do
       data = queryDNS(host, data)
       if #data > 0 then break end
     end
     if #data > 0 then
-      data = data:sub(3)
-      cache.set(domain, data:sub(3))
-      skt:sendto(data, ip, port)
+      cache.set(key, data)
+      skt:sendto(data:sub(3), ip, port)
     end
   end
-  task.unlock(domain)
+  task.unlock(key)
 end
 
 local function udpserver()
