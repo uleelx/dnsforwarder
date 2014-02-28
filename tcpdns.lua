@@ -59,6 +59,7 @@ do
   end
 
   local function step()
+    local nwt = math.huge
     for co, wt in pairs(pool) do
       if os.clock() >= wt and not mutex[mutex[co]] then
         assert(coroutine.resume(co))
@@ -67,14 +68,18 @@ do
           num = num - 1
         end
       end
+      if pool[co] then nwt = math.min(nwt, pool[co]) end
     end
-    return num
+    return num, nwt - os.clock()
   end
 
-  local function loop(n)
-    n = n or 0.001
+  local function loop()
     local sleep = ps.sleep or socket.sleep
-    while step() ~= 0 do sleep(n) end
+    while true do
+      local num, wait = step()
+      if num == 0 then break end
+      if wait > 0 then sleep(wait) end
+    end
   end
 
   local function lock(o)
@@ -117,7 +122,7 @@ local hosts = {
 
 local function queryDNS(host, data)
   local sock = socket.tcp()
-  sock:settimeout(1)
+  sock:settimeout(2)
   local ret = sock:connect(host, 53)
   if not ret then task.sleep(1) end
   ret = ""
@@ -162,7 +167,7 @@ local function udpserver()
     if data and #data > 0 then
       task.go(transfer, udp, data, ip, port)
     end
-    task.sleep(0)
+    task.sleep(0.1)
   end
 end
 
