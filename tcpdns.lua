@@ -107,7 +107,7 @@ end
 -----------------------------------------
 -- TCP DNS proxy
 -----------------------------------------
-local cache = LRU(45)
+local cache = LRU(20)
 local task = task
 
 local hosts = {
@@ -117,20 +117,17 @@ local hosts = {
 
 local function queryDNS(host, data)
   local sock = socket.tcp()
-  sock:settimeout(0)
-  local ret, err
-  while true do
-    ret, err = sock:connect(host, 53)
-    if ret or string.find(err, "already") then break end
-    task.sleep(0.1)
-  end
+  sock:settimeout(1)
+  local ret = sock:connect(host, 53)
+  if not ret then task.sleep(1) end
   ret = ""
-  sock:send(struct.pack(">h", #data)..data)
-  repeat
-    task.sleep(0.01)
-    local s, status, partial = sock:receive(1024)
-    ret = ret..(s or partial)
-  until #ret > 0 or status == "closed"
+  if sock:send(struct.pack(">h", #data)..data) then
+    repeat
+      task.sleep(0.02)
+      local s, status, partial = sock:receive(1024)
+      ret = ret..(s or partial)
+    until #ret > 0 or status == "closed"
+  end
   sock:close()
   return ret
 end
@@ -145,7 +142,6 @@ local function transfer(skt, data, ip, port)
     for _, host in ipairs(hosts) do
       data = queryDNS(host, data)
       if #data > 0 then break end
-      task.sleep(0)
     end
     if #data > 0 then
       data = data:sub(3)
@@ -162,7 +158,7 @@ local function udpserver()
   udp:setsockname('*', 53)
   while true do
     local data, ip, port = udp:receivefrom()
-    if data then
+    if data and #data > 0 then
       task.go(transfer, udp, data, ip, port)
     end
     task.sleep(0)
