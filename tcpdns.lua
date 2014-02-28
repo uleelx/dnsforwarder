@@ -117,19 +117,22 @@ local hosts = {
 
 local function queryDNS(host, data)
   local sock = socket.tcp()
-  sock:settimeout(2)
-  local recv = ""
-  if sock:connect(host, 53) then
-    sock:send(struct.pack(">h", #data)..data)
-    sock:settimeout(0)
-    repeat
-      task.sleep(0.01)
-      local s, status, partial = sock:receive(1024)
-      recv = recv..(s or partial)
-    until #recv > 0 or status == "closed"
-    sock:close()
+  sock:settimeout(0)
+  local ret, err
+  while true do
+    ret, err = sock:connect(host, 53)
+    if ret or string.find(err, "already") then break end
+    task.sleep(0.1)
   end
-  return recv
+  ret = ""
+  sock:send(struct.pack(">h", #data)..data)
+  repeat
+    task.sleep(0.01)
+    local s, status, partial = sock:receive(1024)
+    ret = ret..(s or partial)
+  until #ret > 0 or status == "closed"
+  sock:close()
+  return ret
 end
 
 local function transfer(skt, data, ip, port)
