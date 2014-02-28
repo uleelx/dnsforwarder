@@ -52,9 +52,15 @@ do
     end
   end
 
+  local function sleep(n)
+    n = n or 0
+    pool[coroutine.running()] = os.clock() + n
+    coroutine.yield()
+  end
+
   local function step()
     for co, wt in pairs(pool) do
-      if os.clock() >= wt then
+      if os.clock() >= wt and not mutex[mutex[co]] then
         assert(coroutine.resume(co))
         if coroutine.status(co) == "dead" then
           pool[co] = nil
@@ -65,20 +71,19 @@ do
     return num
   end
 
-  local function sleep(n)
-    n = n or 0
-    pool[coroutine.running()] = os.clock() + n
-    coroutine.yield()
-  end
-
   local function loop(n)
     n = n or 0.001
     local sleep = ps.sleep or socket.sleep
     while step() ~= 0 do sleep(n) end
   end
 
-  local function lock(o, n)
-    while mutex[o] do sleep(n) end
+  local function lock(o)
+    local co = coroutine.running()
+    if mutex[o] then
+      mutex[co] = o
+      coroutine.yield()
+    end
+    mutex[co] = nil
     mutex[o] = true
   end
 
@@ -127,13 +132,10 @@ local function queryDNS(host, data)
   return recv
 end
 
-local lock = {}
-
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
   print("domain: "..domain, "thread: "..task.count())
-  if lock[domain] then return end
-  lock[domain] = true
+  task.lock(domain)
   if cache.get(domain) then
     skt:sendto(data:sub(1, 2)..cache.get(domain), ip, port)
   else
@@ -148,7 +150,7 @@ local function transfer(skt, data, ip, port)
       skt:sendto(data, ip, port)
     end
   end
-  lock[domain] = nil
+  task.unlock(domain)
 end
 
 local function udpserver()
