@@ -44,12 +44,10 @@ do
   local num = 0
 
   local function go(f, ...)
-    local co = coroutine.create(f)
-    assert(coroutine.resume(co, ...))
-    if coroutine.status(co) ~= "dead" then
-      pool[co] = pool[co] or os.clock()
-      num = num + 1
-    end
+    local args = table.pack(...)
+    local co = coroutine.create(function() f(table.unpack(args)) end)
+    pool[co] = os.clock()
+    num = num + 1
   end
 
   local function sleep(n)
@@ -68,13 +66,15 @@ do
           num = num - 1
         end
       end
-      if pool[co] then nwt = math.min(nwt, pool[co]) end
+      if pool[co] and not mutex[mutex[co]] then
+        nwt = math.min(nwt, pool[co])
+      end
     end
     return num, nwt - os.clock()
   end
 
   local function loop()
-    local sleep = ps.sleep or socket.sleep
+    local sleep = ps and ps.sleep or socket.sleep
     while true do
       local num, wait = step()
       if num == 0 then break end
@@ -90,10 +90,25 @@ do
     end
     mutex[co] = nil
     mutex[o] = true
+    return o
   end
 
   local function unlock(o)
     mutex[o] = nil
+  end
+
+  local function chan()
+    local queue = lock{}
+    return function(...)
+      if select("#", ...) == 0 then
+        if #queue < 2 then lock(queue) end
+        return table.unpack(table.remove(queue, 1))
+      else
+        table.insert(queue, table.pack(...))
+        unlock(queue)
+        coroutine.yield()
+      end
+    end
   end
 
   local function count()
@@ -104,7 +119,7 @@ do
     go = go, sleep = sleep,
     step = step, loop = loop,
     lock = lock, unlock = unlock,
-    count = count
+    chan = chan, count = count
   }
 
 end
@@ -140,7 +155,7 @@ end
 
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain, "thread: "..task.count())
+  print("domain: "..domain, "thread: "..(task.count() - 1))
   local ID, key = data:sub(1, 2), data:sub(3)
   task.lock(key)
   if cache.get(key) then
