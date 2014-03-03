@@ -68,7 +68,7 @@ do
           num = num - 1
         end
       end
-      if pool[co] and not mutex[mutex[co]] then
+      if pool[co] and not mutex[co] then
         nwt = math.min(nwt, pool[co])
       end
     end
