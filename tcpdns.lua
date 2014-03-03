@@ -44,10 +44,12 @@ do
   local num = 0
 
   local function go(f, ...)
-    local args = table.pack(...)
-    local co = coroutine.create(function() f(table.unpack(args)) end)
-    pool[co] = os.clock()
-    num = num + 1
+    local co = coroutine.create(f)
+    assert(coroutine.resume(co, ...))
+    if coroutine.status(co) ~= "dead" then
+      pool[co] = pool[co] or os.clock()
+      num = num + 1
+    end
   end
 
   local function sleep(n)
@@ -155,7 +157,7 @@ end
 
 local function transfer(skt, data, ip, port)
   local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain, "thread: "..(task.count() - 1))
+  print("domain: "..domain, "thread: "..task.count())
   local ID, key = data:sub(1, 2), data:sub(3)
   task.lock(key)
   if cache.get(key) then
