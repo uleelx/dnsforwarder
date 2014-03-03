@@ -99,11 +99,21 @@ do
     mutex[o] = nil
   end
 
+  local closed = {}
+
   local function chan()
     local queue = lock{}
     return function(...)
       if select("#", ...) == 0 then
+        if queue[1] and queue[1][1] == closed then
+          unlock(queue)
+          return closed
+        end
         if #queue < 2 then lock(queue) end
+        if queue[1][1] == closed then
+          unlock(queue)
+          return closed
+        end
         return table.unpack(table.remove(queue, 1))
       else
         table.insert(queue, table.pack(...))
@@ -111,6 +121,10 @@ do
         coroutine.yield()
       end
     end
+  end
+
+  local function close(ch)
+    ch(closed)
   end
 
   local function count()
@@ -121,7 +135,8 @@ do
     go = go, sleep = sleep,
     step = step, loop = loop,
     lock = lock, unlock = unlock,
-    chan = chan, count = count
+    chan = chan, close = close,
+    closed = closed, count = count
   }
 
 end
