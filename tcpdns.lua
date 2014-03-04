@@ -39,40 +39,44 @@ end
 -----------------------------------------
 do
 
+  local create, resume, status, yield, running = coroutine.create, coroutine.resume, coroutine.status, coroutine.yield, coroutine.running
+  local insert, remove, pack, unpack = table.insert, table.remove, table.pack, table.unpack
+  local assert, pairs, select, clock = assert, pairs, select, os.clock
+
   local pool = {}
   local mutex = {}
   local num = 0
 
   local function go(f, ...)
-    local co = coroutine.create(f)
-    assert(coroutine.resume(co, ...))
-    if coroutine.status(co) ~= "dead" then
-      pool[co] = pool[co] or os.clock()
+    local co = create(f)
+    assert(resume(co, ...))
+    if status(co) ~= "dead" then
+      pool[co] = pool[co] or clock()
       num = num + 1
     end
   end
 
   local function sleep(n)
     n = n or 0
-    pool[coroutine.running()] = os.clock() + n
-    coroutine.yield()
+    pool[running()] = clock() + n
+    yield()
   end
 
   local function step()
-    local nwt = math.huge
+    local nwt = 1/0
     for co, wt in pairs(pool) do
-      if os.clock() >= wt and not mutex[mutex[co]] then
-        assert(coroutine.resume(co))
-        if coroutine.status(co) == "dead" then
+      if clock() >= wt and not mutex[mutex[co]] then
+        assert(resume(co))
+        if status(co) == "dead" then
           pool[co] = nil
           num = num - 1
         end
       end
-      if pool[co] and not mutex[co] then
-        nwt = math.min(nwt, pool[co])
+      if pool[co] and not mutex[co] and nwt > pool[co] then
+        nwt = pool[co]
       end
     end
-    return num, nwt - os.clock()
+    return num, nwt - clock()
   end
 
   local function loop()
@@ -85,12 +89,11 @@ do
   end
 
   local function lock(o)
-    local co = coroutine.running()
     if mutex[o] then
-      mutex[co] = o
-      coroutine.yield()
+      mutex[running()] = o
+      yield()
     end
-    mutex[co] = nil
+    mutex[running()] = nil
     mutex[o] = true
     return o
   end
@@ -114,11 +117,11 @@ do
           unlock(queue)
           return closed
         end
-        return table.unpack(table.remove(queue, 1))
+        return unpack(remove(queue, 1))
       else
-        table.insert(queue, table.pack(...))
+        insert(queue, pack(...))
         unlock(queue)
-        coroutine.yield()
+        yield()
       end
     end
   end
