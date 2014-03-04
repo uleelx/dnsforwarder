@@ -144,10 +144,9 @@ end
 -----------------------------------------
 -- TCP DNS proxy
 -----------------------------------------
-local cache = LRU(20)
-local task = task
-
-local hosts = {
+local CACHE_SIZE = 20
+local NUM_WORKERS = 10
+local HOSTS = {
   "8.8.8.8", "8.8.4.4",
   "208.67.222.222", "208.67.220.220"
 }
@@ -170,39 +169,56 @@ local function queryDNS(host, data)
   return ret
 end
 
-local function transfer(skt, data, ip, port)
-  local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-  print("domain: "..domain, "thread: "..task.count())
-  local ID, key = data:sub(1, 2), data:sub(3)
-  task.lock(key)
-  if cache.get(key) then
-    skt:sendto(ID..cache.get(key):sub(5), ip, port)
-  else
-    for _, host in ipairs(hosts) do
-      data = queryDNS(host, data)
-      if #data > 0 then break end
+local cache = LRU(CACHE_SIZE)
+
+local function worker(w_id, input, output)
+  while true do
+    local data, ip, port = input()
+    local domain = (data:sub(14, -6):gsub("[^%w]", "."))
+    print("domain: "..domain, "worker: "..w_id)
+    local ID, key = data:sub(1, 2), data:sub(3)
+    if cache.get(key) then
+      output(ID..cache.get(key):sub(5), ip, port)
+    else
+      for _, host in ipairs(HOSTS) do
+        data = queryDNS(host, data)
+        if #data > 0 then break end
+      end
+      if #data > 0 then
+        cache.set(key, data)
+        output(data:sub(3), ip, port)
+      end
     end
-    if #data > 0 then
-      cache.set(key, data)
-      skt:sendto(data:sub(3), ip, port)
-    end
+    task.sleep(0)
   end
-  task.unlock(key)
 end
 
-local function udpserver()
-  local udp = socket.udp()
-  udp:settimeout(0)
-  udp:setsockname('*', 53)
+local function replier(udp, output)
+  while true do
+    local data, ip, port = output()
+    udp:sendto(data, ip, port)
+  end
+end
+
+local function listener(udp, input)
   while true do
     local data, ip, port = udp:receivefrom()
     if data and #data > 0 then
-      task.go(transfer, udp, data, ip, port)
+      input(data, ip, port)
     end
     task.sleep(0.1)
   end
 end
 
-task.go(udpserver)
+local input, output = task.chan(), task.chan()
+local udp = socket.udp()
+udp:settimeout(0)
+udp:setsockname('*', 53)
+
+task.go(listener, udp, input)
+task.go(replier, udp, output)
+for i = 1, NUM_WORKERS do
+  task.go(worker, i, input, output)
+end
 
 task.loop()
