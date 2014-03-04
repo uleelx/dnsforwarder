@@ -102,20 +102,20 @@ do
     mutex[o] = nil
   end
 
-  local closed = {}
+  local function close(ch)
+    ch(close)
+  end
 
   local function chan()
     local queue = lock{}
     return function(...)
       if select("#", ...) == 0 then
-        if queue[1] and queue[1][1] == closed then
-          unlock(queue)
-          return closed
+        if queue[1] and queue[1][1] == close then
+          return close
         end
         if #queue < 2 then lock(queue) end
-        if queue[1][1] == closed then
-          unlock(queue)
-          return closed
+        if queue[1][1] == close then
+          unlock(queue) return close
         end
         return unpack(remove(queue, 1))
       else
@@ -124,10 +124,6 @@ do
         yield()
       end
     end
-  end
-
-  local function close(ch)
-    ch(closed)
   end
 
   local function count()
@@ -139,7 +135,7 @@ do
     step = step, loop = loop,
     lock = lock, unlock = unlock,
     chan = chan, close = close,
-    closed = closed, count = count
+    count = count
   }
 
 end
