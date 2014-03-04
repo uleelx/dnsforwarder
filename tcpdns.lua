@@ -141,6 +141,8 @@ do
 
 end
 
+local task = task
+
 -----------------------------------------
 -- TCP DNS proxy
 -----------------------------------------
@@ -169,9 +171,7 @@ local function queryDNS(host, data)
   return ret
 end
 
-local cache = LRU(CACHE_SIZE)
-
-local function worker(w_id, input, output)
+local function worker(w_id, cache, input, output)
   while true do
     local data, ip, port = input()
     local domain = (data:sub(14, -6):gsub("[^%w]", "."))
@@ -189,7 +189,6 @@ local function worker(w_id, input, output)
         output(data:sub(3), ip, port)
       end
     end
-    task.sleep(0)
   end
 end
 
@@ -210,6 +209,7 @@ local function listener(udp, input)
   end
 end
 
+local cache = LRU(CACHE_SIZE)
 local input, output = task.chan(), task.chan()
 local udp = socket.udp()
 udp:settimeout(0)
@@ -218,7 +218,6 @@ udp:setsockname('*', 53)
 task.go(listener, udp, input)
 task.go(replier, udp, output)
 for i = 1, NUM_WORKERS do
-  task.go(worker, i, input, output)
+  task.go(worker, i, cache, input, output)
 end
-
 task.loop()
