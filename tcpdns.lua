@@ -154,7 +154,7 @@ local HOSTS = {
 
 local function queryDNS(host, data)
   local sock = socket.tcp()
-  sock:settimeout(2)
+  sock:settimeout(1)
   local ret = sock:connect(host, 53)
   if not ret then task.sleep(1) end
   ret = ""
@@ -204,7 +204,7 @@ local function listener(udp, input)
     if data and #data > 0 then
       input(data, ip, port)
     end
-    task.sleep(0.1)
+    task.sleep(0.05)
   end
 end
 
