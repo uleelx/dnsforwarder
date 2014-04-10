@@ -40,7 +40,7 @@ end
 do
 
   local create, resume, status, yield, running = coroutine.create, coroutine.resume, coroutine.status, coroutine.yield, coroutine.running
-  local insert, remove, pack, unpack = table.insert, table.remove, table.pack, table.unpack
+  local insert, remove, pack, unpack = table.insert, table.remove, table.pack, unpack or table.unpack
   local assert, pairs, select, clock = assert, pairs, select, os.clock
 
   local pool = {}
@@ -93,7 +93,9 @@ do
       mutex[running()] = o
       yield()
     end
-    mutex[running()] = nil
+    if running() then
+      mutex[running()] = nil
+    end
     mutex[o] = true
     return o
   end
@@ -119,7 +121,7 @@ do
         end
         return unpack(remove(queue, 1))
       else
-        insert(queue, pack(...))
+        insert(queue, {...})
         unlock(queue)
         yield()
       end
