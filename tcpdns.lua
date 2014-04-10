@@ -40,7 +40,7 @@ end
 do
 
   local create, resume, status, yield, running = coroutine.create, coroutine.resume, coroutine.status, coroutine.yield, coroutine.running
-  local insert, remove, pack, unpack = table.insert, table.remove, table.pack, unpack or table.unpack
+  local insert, remove, unpack = table.insert, table.remove, unpack or table.unpack
   local assert, pairs, select, clock = assert, pairs, select, os.clock
 
   local pool = {}
@@ -80,7 +80,7 @@ do
   end
 
   local function loop()
-    local sleep = ps and ps.sleep or socket.sleep
+    local sleep = socket.sleep
     while true do
       local num, wait = step()
       if num == 0 then break end
