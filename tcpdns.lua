@@ -149,15 +149,15 @@ local task = task
 -----------------------------------------
 local CACHE_SIZE = 20
 local NUM_WORKERS = 10
-local HOSTS = {
-  "8.8.8.8", "8.8.4.4",
-  "208.67.222.222", "208.67.220.220"
+local SERVERS = {
+  "106.186.17.181:2053", "128.199.248.105:54",
+  "208.67.222.123", "199.85.126.20"
 }
 
-local function queryDNS(host, data)
+local function queryDNS(ip, port, data)
   local sock = socket.tcp()
   sock:settimeout(1)
-  local ret = sock:connect(host, 53)
+  local ret = sock:connect(ip, #port ~= 0 and port or 53)
   if not ret then task.sleep(1) end
   ret = ""
   if sock:send(struct.pack(">h", #data)..data) then
@@ -181,8 +181,9 @@ local function worker(w_id, cache, input, output)
     if cache.get(key) then
       output(ID..cache.get(key):sub(5), ip, port)
     else
-      for _, host in ipairs(HOSTS) do
-        data = queryDNS(host, data)
+      for _, server in ipairs(SERVERS) do
+        local dns_ip, dns_port = string.match(server, "([^:]*):?(.*)")
+        data = queryDNS(dns_ip, dns_port, data)
         if #data > 0 then break end
       end
       if #data > 0 then
