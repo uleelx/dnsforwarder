@@ -1,7 +1,3 @@
-What is it ?
--------------------------------
-The Lua version of [Tcp-DNS-proxy](https://github.com/henices/Tcp-DNS-proxy).
-
 How to use this Lua script ?
 -------------------------------
 
@@ -19,7 +15,7 @@ How to use this Lua script ?
 3.    run the script
 
   ```bash
-  $ sudo lua tcpdns.lua
+  $ sudo lua dnsforwarder.lua
   ```
   
 Dependencies
@@ -27,17 +23,15 @@ Dependencies
 
 ### lua moudules
    * [luasocket](http://w3.impa.br/~diego/software/luasocket/)
-   * [struct](http://www.inf.puc-rio.br/~roberto/struct/)
 
 INSTALL
 ---------------------
 
 ```bash
   sudo luarocks install luasocket
-  sudo luarocks install struct
 ```
 
 LICENSE
 ----------------------
 
-TCP-DNS-proxy is distributed under the MIT license.
+DNSForwarder is distributed under the MIT license.
