@@ -28,11 +28,11 @@ local IP, PORT = {}, {}
 
 local udp = socket.udp()
 udp:settimeout(0)
-udp:setsockname('*', 53)
+assert(udp:setsockname("*", 53))
 
 local udp2 = socket.udp()
 udp2:settimeout(0)
-udp2:setsockname('*', 9011)
+assert(udp2:setsockname("*", 0))
 
 local function listener()
   while true do
