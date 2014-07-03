@@ -6,7 +6,7 @@ local task = task
 local SERVERS = {
   "114.114.114.114", "223.5.5.5",
   "106.186.17.181:2053", "128.199.248.105:54",
-  "208.67.222.123:443", "199.85.126.20"
+  "208.67.222.123:443"
 }
 
 local FAKE_IP = {
@@ -20,23 +20,11 @@ local FAKE_IP = {
   "209.85.229.138", "211.94.66.147", "213.169.251.35", "216.221.188.182", "216.234.179.13"
 }
 
-for _, ip in ipairs(FAKE_IP) do
-  FAKE_IP[ip:gsub("%d+", string.char):gsub("(.).", "%1")] = true
-end
-
 local IP, PORT = {}, {}
 
-local udp = socket.udp()
-udp:settimeout(0)
-assert(udp:setsockname("*", 53))
-
-local udp2 = socket.udp()
-udp2:settimeout(0)
-assert(udp2:setsockname("*", 0))
-
-local function listener()
+local function listener(proxy, forwarder)
   while true do
-    local data, ip, port = udp:receivefrom()
+    local data, ip, port = proxy:receivefrom()
     if data and #data > 0 then
       local domain = (data:sub(14, -6):gsub("[^%w]", "."))
       print("domain: "..domain)
@@ -44,20 +32,21 @@ local function listener()
       IP[ID], PORT[ID] = ip, port
       for _, server in ipairs(SERVERS) do
         local dns_ip, dns_port = string.match(server, "([^:]*):?(.*)")
-        udp2:sendto(data, dns_ip, #dns_port ~= 0 and dns_port or 53)
+        dns_port = tonumber(dns_port) or 53
+        forwarder:sendto(data, dns_ip, dns_port)
       end
     end
     task.sleep(0.05)
   end
 end
 
-local function replier()
+local function replier(proxy, forwarder)
   while true do
-    local data = udp2:receivefrom()
+    local data = forwarder:receive()
     if data and #data > 0 then
       local ID = data:sub(1, 2)
       if IP[ID] and not FAKE_IP[data:sub(-4)] then
-        udp:sendto(data, IP[ID], PORT[ID])
+        proxy:sendto(data, IP[ID], PORT[ID])
         IP[ID], PORT[ID] = nil, nil
       end
     end
@@ -65,7 +54,22 @@ local function replier()
   end
 end
 
-task.go(listener)
-task.go(replier)
+local function main()
+  local proxy = socket.udp()
+  proxy:settimeout(0)
+  assert(proxy:setsockname("*", 53))
 
-task.loop()
+  local forwarder = socket.udp()
+  forwarder:settimeout(0)
+  assert(forwarder:setsockname("*", 0))
+
+  for _, ip in ipairs(FAKE_IP) do
+    FAKE_IP[ip:gsub("%d+", string.char):gsub("(.).", "%1")] = true
+  end
+
+  task.go(listener, proxy, forwarder)
+  task.go(replier, proxy, forwarder)
+  task.loop()
+end
+
+main()
