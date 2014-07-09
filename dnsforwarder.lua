@@ -1,6 +1,6 @@
 local socket = require("socket")
-if not task then dofile("task.lua") end
 
+if not task then dofile("task.lua") end
 local task = task
 
 local SERVERS = {
@@ -21,13 +21,14 @@ local FAKE_IP = {
 }
 
 local IP, PORT = {}, {}
+local busy, busy_count = false, 0
 
 local function listener(proxy, forwarder)
   while true do
     local data, ip, port = proxy:receivefrom()
     if data and #data > 0 then
       local domain = (data:sub(14, -6):gsub("[^%w]", "."))
-      print("domain: "..domain)
+      io.write(domain.."\n")
       local ID = data:sub(1, 2)
       IP[ID], PORT[ID] = ip, port
       for _, server in ipairs(SERVERS) do
@@ -35,8 +36,14 @@ local function listener(proxy, forwarder)
         dns_port = tonumber(dns_port) or 53
         forwarder:sendto(data, dns_ip, dns_port)
       end
+      busy, busy_count = true, 10
+    else
+      if busy then
+        busy_count = busy_count - 1
+        if busy_count == 0 then busy = false end
+      end
     end
-    task.sleep(0.05)
+    task.sleep(busy and 0.02 or 0.1)
   end
 end
 
@@ -50,7 +57,7 @@ local function replier(proxy, forwarder)
         IP[ID], PORT[ID] = nil, nil
       end
     end
-    task.sleep(0.05)
+    task.sleep(busy and 0.01 or 0.1)
   end
 end
 

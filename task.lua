@@ -1,10 +1,11 @@
 -----------------------------------------
 -- task package
 -----------------------------------------
+local socket = require("socket")
 
 local create, resume, status, yield, running = coroutine.create, coroutine.resume, coroutine.status, coroutine.yield, coroutine.running
 local insert, remove, unpack = table.insert, table.remove, unpack or table.unpack
-local assert, pairs, select, clock = assert, pairs, select, os.clock
+local assert, pairs, select, clock = assert, pairs, select, socket.gettime
 
 local pool = {}
 local mutex = {}
