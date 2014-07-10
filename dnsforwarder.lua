@@ -21,7 +21,24 @@ local FAKE_IP = {
 }
 
 local IP, PORT = {}, {}
-local busy, busy_count = false, 0
+local busy = false
+
+local function replier(proxy, forwarder)
+  local lifetime, interval = 5, 0.01
+  repeat
+    if busy then lifetime, busy = 5, false end
+    local data = forwarder:receive()
+    if data and #data > 0 then
+      local ID = data:sub(1, 2)
+      if IP[ID] and not FAKE_IP[data:sub(-4)] then
+        proxy:sendto(data, IP[ID], PORT[ID])
+        IP[ID], PORT[ID] = nil, nil
+      end
+    end
+    lifetime = lifetime - interval
+    task.sleep(interval)
+  until lifetime < 0
+end
 
 local function listener(proxy, forwarder)
   while true do
@@ -36,32 +53,18 @@ local function listener(proxy, forwarder)
         dns_port = tonumber(dns_port) or 53
         forwarder:sendto(data, dns_ip, dns_port)
       end
-      busy, busy_count = true, 10
-    else
-      if busy then
-        busy_count = busy_count - 1
-        if busy_count == 0 then busy = false end
-      end
+      busy = true
+      if task.count() == 1 then task.go(replier, proxy, forwarder) end
     end
-    task.sleep(busy and 0.02 or 0.1)
-  end
-end
-
-local function replier(proxy, forwarder)
-  while true do
-    local data = forwarder:receive()
-    if data and #data > 0 then
-      local ID = data:sub(1, 2)
-      if IP[ID] and not FAKE_IP[data:sub(-4)] then
-        proxy:sendto(data, IP[ID], PORT[ID])
-        IP[ID], PORT[ID] = nil, nil
-      end
-    end
-    task.sleep(busy and 0.01 or 0.1)
+    task.sleep(0.02)
   end
 end
 
 local function main()
+  for _, ip in ipairs(FAKE_IP) do
+    FAKE_IP[ip:gsub("%d+", string.char):gsub("(.).", "%1")] = true
+  end
+
   local proxy = socket.udp()
   proxy:settimeout(0)
   assert(proxy:setsockname("*", 53))
@@ -70,12 +73,7 @@ local function main()
   forwarder:settimeout(0)
   assert(forwarder:setsockname("*", 0))
 
-  for _, ip in ipairs(FAKE_IP) do
-    FAKE_IP[ip:gsub("%d+", string.char):gsub("(.).", "%1")] = true
-  end
-
   task.go(listener, proxy, forwarder)
-  task.go(replier, proxy, forwarder)
   task.loop()
 end
 
