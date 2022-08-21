@@ -3,11 +3,13 @@ local socket = require("socket")
 if not task then dofile("task.lua") end
 local task = task
 
+-- list of local servers
 local SERVERS = {
   "119.29.29.29", "114.114.115.110", "223.5.5.5",
   "8.8.8.8", "208.67.220.123"
 }
 
+--list of local fake ips
 local FAKE_IP = {
   "0.0.0.0", "1.1.1.1", "113.11.194.190", "118.5.49.6", "12.87.133.0",
   "122.218.101.190", "123.126.249.238", "123.50.49.171", "125.230.148.48", "127.0.0.2",
@@ -51,7 +53,7 @@ local function replier(proxy, forwarder)
   until lifetime < 0
 end
 
-local function listener(proxy, forwarder)
+local function listener(proxy, forwarder) 
   while true do
     local data, ip, port = proxy:receivefrom()
     if data and #data > 0 then
@@ -62,28 +64,31 @@ local function listener(proxy, forwarder)
       for _, server in ipairs(SERVERS) do
         local dns_ip, dns_port = string.match(server, "([^:]*):?(.*)")
         dns_port = tonumber(dns_port) or 53
-        forwarder:sendto(data, dns_ip, dns_port)
+        forwarder:sendto(data, dns_ip, dns_port) --the actual forward
       end
       busy = true
-      if task.count() == 1 then task.go(replier, proxy, forwarder) end
+      if task.count() == 1 then task.go(replier, proxy, forwarder) end --replier, proxy and forwarder inits only once
     end
     task.sleep(0.02)
   end
 end
 
 local function main()
-  for _, ip in ipairs(FAKE_IP) do
+  for _, ip in ipairs(FAKE_IP) do --parse through each fake ip in list and reformat
     FAKE_IP[ip:gsub("%d+", string.char):gsub("(.).", "%1")] = true
   end
-
+  
+  --set a new udp proxy with timeout 0 and port 53
   local proxy = socket.udp()
   proxy:settimeout(0)
   assert(proxy:setsockname("*", 53))
-
+  
+  --set forwarder as new udp with timezone 0 and port 0
   local forwarder = socket.udp()
   forwarder:settimeout(0)
   assert(forwarder:setsockname("*", 0))
 
+  --loop thru listener, proxy and forwarder
   task.go(listener, proxy, forwarder)
   task.loop()
 end
